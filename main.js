@@ -1,0 +1,116 @@
+const express = require('express');
+const cors = require('cors');
+const { Pool } = require('pg');
+const path = require('path');
+require('dotenv').config({ 
+    path: path.resolve(__dirname, '.env') 
+}); 
+
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+app.set('trust proxy', 1); 
+
+app.use(cors());
+app.use(express.json());
+
+app.use((req, res, next) => {
+
+    console.log(`[HIT] ${req.method} ${req.url}`);
+    if (req.method === 'POST') {
+        console.log('Body received (DEBUG):', req.body); 
+    }
+    next();
+});
+
+const con = new Pool({
+    host: process.env.DB_HOST || "localhost",
+    user: process.env.DB_USER || "postgres",
+    port: process.env.DB_PORT || 5432,
+    password: process.env.DB_PASSWORD,
+    database: process.env.DB_NAME,
+});
+
+con.query('SELECT 1 + 1 AS result')
+    .then(() => console.log("✅ Connected to PostgreSQL Pool successfully! 🎉"))
+    .catch(err => {
+        console.error("❌ Connection error to PostgreSQL. Please check DB credentials in .env:", err.stack);
+        process.exit(1);
+    });
+
+con.connect()
+    .then(() => console.log("✅ Connected to PostgreSQL successfully! 🎉"))
+    .catch(err => {
+        console.error("❌ Connection error to PostgreSQL. Please check DB credentials in .env:", err.stack);
+        process.exit(1);
+    });
+
+app.post('/test-post', (req, res) => {
+    console.log("!!! Request POST /test-post BERHASIL MENCAPAI SERVER !!!");
+    console.log("Body diterima:", req.body);
+    res.status(200).json({ status: "ok", message: "Test POST Berhasil! Blokir ada di router lain." });
+});
+
+const createClientRouter = require('./routes/client');
+const clientRouter = createClientRouter(con);
+app.use('/postClient', clientRouter);
+
+const createAuthRouter = require('./login');
+const authRouter = createAuthRouter(con);
+app.use('/auth', authRouter);
+
+const createStoreRouter = require('./routes/store');
+const storeRouter = createStoreRouter(con);
+app.use('/store', storeRouter);
+
+const createProductRouter = require('./routes/product');
+const productRouter = createProductRouter(con); 
+app.use('/product', productRouter);
+
+const createVerifyOtpRouter = require('./routes/verify-otp'); 
+const verifyOtpRouter = createVerifyOtpRouter(con); 
+app.use('/', verifyOtpRouter);
+
+const createForgotResetRouter = require('./routes/forgotPassword'); 
+const forgotResetRouter = createForgotResetRouter(con); 
+app.use('/auth', forgotResetRouter);
+
+const createCartRouter = require('./routes/cart');
+const cartRouter = createCartRouter(con);
+app.use('/cart', cartRouter);
+
+const orderRouter = require('./routes/order');
+app.use('/order', orderRouter(con)); 
+
+const createOrderRouter2 = require('./routes/order-detail');
+const orderRouter2 = createOrderRouter2(con);
+app.use('/order-detail', orderRouter2);
+
+const createPaymentRouter = require('./routes/payment'); 
+const paymentRouter = createPaymentRouter(con);
+app.use('/payment', paymentRouter); 
+
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
+app.use((req, res, next) => {
+
+    res.status(404).json({
+        success: false,
+        message: 'Endpoint tidak ditemukan.'
+    });
+});
+
+app.use((err, req, res, next) => {
+    console.error(err.stack); 
+    res.status(500).json({
+        success: false,
+        message: 'Kesalahan Server Internal (500). Cek log backend untuk detail.'
+    });
+});
+
+
+app.listen(PORT, '0.0.0.0', () => {
+    console.log('------------------------------------------------');
+    console.log(`✅ Server is running on:   http://10.38.53.95:${PORT} 🚀`);
+    console.log('------------------------------------------------');
+});
