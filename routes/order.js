@@ -78,11 +78,17 @@ module.exports = (con) => {
  
             const orderDate = new Date().toISOString();
 
+
+            let status = 'waiting for payment'; // status default
+
+            if (payment_method && payment_method.toUpperCase() === 'COD') {
+                status = 'shipped';
+                }
             const orderResult = await client.query(
                 `INSERT INTO "order" (client_id, order_date, total_price, status, shipping_address, payment_method)
                  VALUES ($1, $2, $3, $4, $5, $6)
                  RETURNING order_id, order_date`,
-                [client_id, orderDate, total_price, 'waiting for payment', finalShippingAddress, payment_method]
+                [client_id, orderDate, total_price, status, finalShippingAddress, payment_method]
             );
             
             const { order_id, order_date } = orderResult.rows[0];
@@ -191,7 +197,47 @@ module.exports = (con) => {
                 client.release();
             }
         }
-    });
+        router.get('/history', verifyToken, async (req, res) => {
+    const client_id = req.clientId; 
+
+    try {
+        // Query ini mengambil data order dan mengurutkannya dari yang terbaru
+        const query = `
+            SELECT 
+                order_id, 
+                order_date, 
+                total_price, 
+                status, 
+                shipping_address, 
+                payment_method 
+            FROM "order"
+            WHERE client_id = $1
+            ORDER BY order_date DESC
+        `;
+
+        const result = await con.query(query, [client_id]);
+
+        // Mengirimkan response yang mudah dibaca oleh Flutter
+        res.status(200).json({
+            success: true,
+            message: "Riwayat pesanan berhasil diambil",
+            count: result.rows.length,
+            data: result.rows
+        });
+
+    } catch (err) {
+        console.error('Error fetching order history:', err);
+        return res.status(500).json({ 
+            success: false,
+            message: 'Gagal mengambil riwayat pesanan' 
+        });
+    }
+});
+    }
+
+    
+
+);
 
     return router;
 };

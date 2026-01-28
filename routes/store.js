@@ -238,7 +238,7 @@ module.exports = (con) => {
             }
 
             res.status(200).send({ success: true, message: "Toko diperbarui.", data: result.rows[0] });
-        } catch (err) {
+        } catch (err) {                         
             res.status(500).send({ success: false, message: "Terjadi kesalahan server." });
         }
     });
